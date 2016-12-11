@@ -31,23 +31,22 @@ void sig_handler(int sig){
 }
 
 void execute(char ** args, int background){
-	int b = background;
+	pid_t wpid;
 	int status;
 	int stdin_cpy = dup(STDIN_FILENO);
 	int stdout_cpy = dup(STDOUT_FILENO);
-	int newout;
-	int newin;
+	int newout = -1;
+	int newin = -1;
 
 	//go through and do rediretions
-	for(int i = 0; args[i]!=NULL; i++){
+	int i = 0;
+	while(args[i]!=NULL){
 		if(strcmp(args[i], "<") == 0){
-			printf("new in\n");
 			newin = open(args[i+1], O_RDONLY);
 			if(newin < 0){
 				perror("Opening File");
 				exit(EXIT_FAILURE);
 			}
-			printf("opened\n");
 			int ret = dup2(newin, STDIN_FILENO);
 			if(ret<0){
 				perror("dup2 failed");
@@ -55,8 +54,8 @@ void execute(char ** args, int background){
 			}
 			args[i] = NULL;
 		}
-		if(strcmp(args[i], ">") == 0){
-			newout = open(args[i+1], O_WRONLY|O_APPEND|O_CREAT);
+		else if(strcmp(args[i], ">") == 0){
+			newout = open(args[i+1], O_WRONLY|O_APPEND|O_CREAT, S_IRUSR|S_IWUSR);
 			if(newout < 0){
 				perror("Opening File");
 				exit(EXIT_FAILURE);
@@ -69,6 +68,7 @@ void execute(char ** args, int background){
 			args[i] = NULL;
 
 		}
+		i++;
 	}
 
 	pid_t pid;
@@ -77,17 +77,20 @@ void execute(char ** args, int background){
 		perror("fork problem");
 		exit(EXIT_FAILURE);
 	}
-
 	if(pid==0){
 		//child
 		if (execvp(args[0], args) < 0) {
 			perror("problem with exec.");
 			exit(EXIT_FAILURE);
 		}
+
 	} else {
 		//parent
-		if(!b){
-			while (wait(&status) != pid);
+		if(background){
+			printf("%d\n", pid);
+			waitpid(-1, &status, WNOHANG);
+		} else {
+			wpid = wait(&status);
 		}
 	}
 	
@@ -97,6 +100,7 @@ void execute(char ** args, int background){
 		perror("Error restoring file table");
 		exit(EXIT_FAILURE);
 	}
+
 	ret = dup2(stdout_cpy, STDOUT_FILENO);
 	if(ret<0){
 		perror("Error restoring file table");
@@ -113,16 +117,19 @@ int main(){
 	char * line;
 	will_malloc(&line, LINE_SIZE);
 	strcat(username, " -- ");
-	int background = 0;
 
 	/* Main loop */
 
 	while(1){
-		
+
+		//check and see if any children need to be reaped
+
+
 		// init per loop variables
+		int background = 0;
 		char * args[ARGS_LEN];
 		int args_count = 0;
-		for(int i = 0; i < ARGS_LEN; i++){
+		for(int i = 0; i<ARGS_LEN; i++){
 			will_malloc(&args[i], 100);
 		}
 
@@ -155,6 +162,8 @@ int main(){
 		if(strcmp(args[args_count-1], "&") == 0){
 			background = 1;
 			args[args_count-1] = NULL;
+		} else {
+			background = 0;
 		}
 
 		if(DEBUG){
@@ -166,6 +175,10 @@ int main(){
 		// default commands 
 		if(strcmp(args[0], "exit") == 0){
 			//free all mem
+			for(int i = 0; i < ARGS_LEN; i++){
+				free(args[i]);
+			}
+			free(arg);
 			printf("exiting\n");
 			break;
 		}
@@ -191,7 +204,7 @@ int main(){
 			execute(args, background);
 		}
 
-		//free mem
+		//free line, username, args, arg
 		for(int i = 0; i < ARGS_LEN; i++){
 			free(args[i]);
 		}
@@ -199,6 +212,8 @@ int main(){
 	}
 
 	//free mem
+	free(username);
+	free(line);
 
 	return(0);
 }

@@ -1,5 +1,39 @@
-fuck me I Dleted the whole lab after doing everything up to redirection
+fuck me I deleted the whole lab after doing everything up to redirection...
 
 I affirm I have adhered to the honor code on this assignment
+
+looping, forking, parsing  [18/18]
+		looping     [ /3]
+		commands    [ /5]
+		exit        [ /1]
+		myinfo      [ /1]
+		cd          [ /1]
+		cd <dir>    [ /2]
+		forking     [ /5]
+		parsing     [ /5]
+	
+    
+		multi, SIGINT, background  [10/15]
+			multi       [ 5/5]
+			SIGINT	    [ /5]
+			background  [ 5/5]
+	
+	redirection, piping, multi-piping [/510]
+			redirection [ 5/5]
+			piping      [ /5]
+
+		Makefile, README, valgrind  [3/5]
+			valgrind    [ /2]
+			Makefile    [ 2/2]
+			README      [ 1/1]
+
+		error handling  [2/2]
+
+		extras  [/0]
+			no spaces   [/2]
+			background  [/2]
+			multi-pipe  [/5]
+
+    TOTAL  [38/50]
 
 Will Johnson
