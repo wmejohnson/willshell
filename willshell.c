@@ -30,12 +30,49 @@ void sig_handler(int sig){
 	//some other shite
 }
 
-void execute(char ** args){
+void execute(char ** args, int background){
+	int b = background;
+	int status;
+	int stdin_cpy = dup(STDIN_FILENO);
+	int stdout_cpy = dup(STDOUT_FILENO);
+	int newout;
+	int newin;
+
+	//go through and do rediretions
+	for(int i = 0; args[i]!=NULL; i++){
+		if(strcmp(args[i], "<") == 0){
+			printf("new in\n");
+			newin = open(args[i+1], O_RDONLY);
+			if(newin < 0){
+				perror("Opening File");
+				exit(EXIT_FAILURE);
+			}
+			printf("opened\n");
+			int ret = dup2(newin, STDIN_FILENO);
+			if(ret<0){
+				perror("dup2 failed");
+				exit(EXIT_FAILURE);
+			}
+			args[i] = NULL;
+		}
+		if(strcmp(args[i], ">") == 0){
+			newout = open(args[i+1], O_WRONLY|O_APPEND|O_CREAT);
+			if(newout < 0){
+				perror("Opening File");
+				exit(EXIT_FAILURE);
+			}
+			int ret = dup2(newout, STDOUT_FILENO);
+			if(ret<0){
+				perror("dup2 failed");
+				exit(EXIT_FAILURE);
+			}
+			args[i] = NULL;
+
+		}
+	}
 
 	pid_t pid;
 	pid = fork();
-	int status;
-
 	if(pid<0){
 		perror("fork problem");
 		exit(EXIT_FAILURE);
@@ -49,10 +86,22 @@ void execute(char ** args){
 		}
 	} else {
 		//parent
-		while (wait(&status) != pid);
+		if(!b){
+			while (wait(&status) != pid);
+		}
 	}
 	
 	//restore fd table
+	int ret = dup2(stdin_cpy, STDIN_FILENO);
+	if(ret<0){
+		perror("Error restoring file table");
+		exit(EXIT_FAILURE);
+	}
+	ret = dup2(stdout_cpy, STDOUT_FILENO);
+	if(ret<0){
+		perror("Error restoring file table");
+		exit(EXIT_FAILURE);
+	}
 }
 
 /* Main Function */
@@ -105,6 +154,7 @@ int main(){
 		// background
 		if(strcmp(args[args_count-1], "&") == 0){
 			background = 1;
+			args[args_count-1] = NULL;
 		}
 
 		if(DEBUG){
@@ -116,6 +166,7 @@ int main(){
 		// default commands 
 		if(strcmp(args[0], "exit") == 0){
 			//free all mem
+			printf("exiting\n");
 			break;
 		}
 		if(strcmp(args[0], "myinfo") == 0){
@@ -124,16 +175,20 @@ int main(){
 		}
 		if(strcmp(args[0], "cd") == 0){
 			if(args_count > 1){
-				chdir(args[1]);
+				if(chdir(args[1]) == -1){
+					perror("this directory doesn't exist");
+				}
 			} else {
-				chdir(getenv("HOME"));
+				if(chdir(getenv("HOME")) == -1){
+					perror("this directory doesn't exist");
+				}
 			}
 			continue;
 		}	
 
 		//fork and exec 
 		if(args_count>0){
-			execute(args);
+			execute(args, background);
 		}
 
 		//free mem
