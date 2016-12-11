@@ -16,6 +16,8 @@
 
 /* Helper functions */
 
+int pid ;
+
 void will_malloc(char ** str, int size){
 	*str = (char *) malloc(sizeof(char*) * size);
 	if(*str == NULL) {
@@ -26,72 +28,126 @@ void will_malloc(char ** str, int size){
 
 void sig_handler(int sig){
 	signal(sig, sig_handler);
-
-	//some other shite
+	
+	switch(sig) {
+		case SIGINT:
+			if(pid!=-1)
+				kill(getpid(), SIGINT);
+			break;
+		default:
+			break;
+	}
 }
 
 void execute(char ** args, int background){
-	pid_t wpid;
+
 	int status;
 	int stdin_cpy = dup(STDIN_FILENO);
 	int stdout_cpy = dup(STDOUT_FILENO);
 	int newout = -1;
 	int newin = -1;
+	int fd[2];
+	int pipe = 0;
+	char * rest;
 
 	//go through and do rediretions
 	int i = 0;
 	while(args[i]!=NULL){
 		if(strcmp(args[i], "<") == 0){
+
 			newin = open(args[i+1], O_RDONLY);
 			if(newin < 0){
 				perror("Opening File");
 				exit(EXIT_FAILURE);
 			}
+
 			int ret = dup2(newin, STDIN_FILENO);
 			if(ret<0){
 				perror("dup2 failed");
 				exit(EXIT_FAILURE);
 			}
+
 			args[i] = NULL;
-		}
-		else if(strcmp(args[i], ">") == 0){
+
+		} else if(strcmp(args[i], ">") == 0) {
+
 			newout = open(args[i+1], O_WRONLY|O_APPEND|O_CREAT, S_IRUSR|S_IWUSR);
 			if(newout < 0){
 				perror("Opening File");
 				exit(EXIT_FAILURE);
 			}
+
 			int ret = dup2(newout, STDOUT_FILENO);
 			if(ret<0){
 				perror("dup2 failed");
 				exit(EXIT_FAILURE);
 			}
+
 			args[i] = NULL;
 
+		} else if(strcmp(args[i], "|") == 0){
+
+			if ( pipe(fd) ){
+				perror("pipe error");
+				exit(EXIT_FAILURE);
+			}
+
+			pipe = 1;
+			args[i] = NULL;
+			rest = args[i+1];
 		}
 		i++;
 	}
 
-	pid_t pid;
-	pid = fork();
+	pid_t wpid;
+	int pid2 = -1;
+	if(pipe){
+		pid = fork();
+		if(pid!=0){
+			pid2 = fork(); 
+		}
+	} else {
+		pid = fork();
+	}
+
 	if(pid<0){
 		perror("fork problem");
 		exit(EXIT_FAILURE);
 	}
+
 	if(pid==0){
 		//child
+		if(pipe){
+			dup2(fd[0], STDIN_FILENO);
+			close(STDOUT_FILENO);
+		}
+		
 		if (execvp(args[0], args) < 0) {
+			perror("problem with exec.");
+			exit(EXIT_FAILURE);
+		}
+	} else if (pid2==0){
+		//child 2
+		if(pipe){
+			dup2(fd[0], STDOUT_FILENO);
+			close(STDIN_FILENO);
+		}
+
+		if (execvp(rest, &rest) < 0) {
 			perror("problem with exec.");
 			exit(EXIT_FAILURE);
 		}
 
 	} else {
 		//parent
+
 		if(background){
 			printf("%d\n", pid);
 			waitpid(-1, &status, WNOHANG);
 		} else {
 			wpid = wait(&status);
 		}
+
 	}
 	
 	//restore fd table
@@ -117,13 +173,13 @@ int main(){
 	char * line;
 	will_malloc(&line, LINE_SIZE);
 	strcat(username, " -- ");
+	pid = -1;
 
 	/* Main loop */
 
 	while(1){
 
 		//check and see if any children need to be reaped
-
 
 		// init per loop variables
 		int background = 0;
@@ -199,6 +255,8 @@ int main(){
 			continue;
 		}	
 
+		signal(SIGINT, sig_handler);
+
 		//fork and exec 
 		if(args_count>0){
 			execute(args, background);
@@ -215,6 +273,6 @@ int main(){
 	free(username);
 	free(line);
 
-	return(0);
+	return(EXIT_SUCCESS);
 }
 
