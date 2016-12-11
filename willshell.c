@@ -1,0 +1,146 @@
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <readline/readline.h>
+#include <readline/history.h>
+
+#define DEBUG 1
+#define LINE_SIZE 1024
+#define ARGS_COUNT 100
+
+/* Helper functions */
+
+void will_malloc(char ** str, int size){
+	*str = (char *) malloc(sizeof(char*) * size);
+	if(*str == NULL) {
+		printf("malloc error\n");
+		exit(1);
+	}
+}
+
+void sig_handler(int sig){
+	signal(sig, sig_handler);
+
+	//some other shite
+}
+	
+int main(){
+	
+	/* Initialize Variables */
+	char * username = strdup(getenv("USER"));
+	char * line;
+	will_malloc(&line, LINE_SIZE);
+	strcat(username, " -- ");
+	int background = 0;
+
+	/* Main loop */
+
+	while(1){
+		
+		// init per loop variables
+		char * args[ARGS_COUNT];
+		int args_count = 0;
+		for(int i = 0; i < ARGS_COUNT; i++){
+			will_malloc(&args[i], 100);
+		}
+
+		// read a line
+		line = readline(username);
+		if(line!=NULL){
+			add_history(line);
+		} else {
+			continue;
+		}
+
+		// parse line into args
+		
+		char * arg;
+		int n = 0;	
+		// get first token
+		arg = strtok(line, " ");
+		args[n] = strdup(arg);
+		n++;
+		args_count++;
+
+		// do the rest 
+		while( arg != NULL){
+			args[n] = strdup(arg);
+			n++;
+			args_count++;
+			arg = strtok(NULL, " ");
+		}	
+
+		// background
+		if(strcmp(args[args_count], "&") == 0){
+			background = 1;
+		}
+
+		if(DEBUG){
+			for(int i = 0; i < args_count; i++){
+				printf("%s\n", args[i]);
+			}
+		}
+
+		// default commands 
+		if(strcmp(args[0], "exit") == 0){
+			//free all mem
+			break;
+		}
+		if(strcmp(args[0], "myinfo") == 0){
+			printf("parent PID: %i\nPID: %i\n", getppid(), getpid());
+			continue;
+		}
+		if(strcmp(args[0], "cd") == 0){
+			if(args_count > 1){
+				//chdir args[1]
+			} else {
+				//chdir home
+			}
+			continue;
+		}
+
+			
+
+		//fork and exec 
+		
+		pid_t pid;
+		pid = fork();
+		
+		if(pid<0){
+			perror("fork problem");
+			exit(EXIT_FAILURE);
+		}
+
+		if(pid){
+			//parent
+			
+		} else {
+			//child
+			if (execvp(line[0], line) == -1){
+				perror("problem with exec.");
+				exit(EXIT_FAILURE);
+			}
+		}
+
+
+		
+		//restore fd table
+
+		//free mem
+		for(int i = 0; i < ARGS_COUNT; i++){
+			free(args[i]);
+		}
+		free(arg);
+	}
+
+	//free mem
+
+	return(0);
+}
+
