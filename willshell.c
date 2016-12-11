@@ -10,9 +10,9 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#define DEBUG 1
+#define DEBUG 0
 #define LINE_SIZE 1024
-#define ARGS_COUNT 100
+#define ARGS_LEN 100
 
 /* Helper functions */
 
@@ -29,7 +29,34 @@ void sig_handler(int sig){
 
 	//some other shite
 }
+
+void execute(char ** args){
+
+	pid_t pid;
+	pid = fork();
+	int status;
+
+	if(pid<0){
+		perror("fork problem");
+		exit(EXIT_FAILURE);
+	}
+
+	if(pid==0){
+		//child
+		if (execvp(args[0], args) < 0) {
+			perror("problem with exec.");
+			exit(EXIT_FAILURE);
+		}
+	} else {
+		//parent
+		while (wait(&status) != pid);
+	}
 	
+	//restore fd table
+}
+
+/* Main Function */
+
 int main(){
 	
 	/* Initialize Variables */
@@ -44,9 +71,9 @@ int main(){
 	while(1){
 		
 		// init per loop variables
-		char * args[ARGS_COUNT];
+		char * args[ARGS_LEN];
 		int args_count = 0;
-		for(int i = 0; i < ARGS_COUNT; i++){
+		for(int i = 0; i < ARGS_LEN; i++){
 			will_malloc(&args[i], 100);
 		}
 
@@ -61,23 +88,22 @@ int main(){
 		// parse line into args
 		
 		char * arg;
-		int n = 0;	
 		// get first token
-		arg = strtok(line, " ");
-		args[n] = strdup(arg);
-		n++;
-		args_count++;
+		if((arg = strtok(line," ")) == NULL){
+			continue;
+		}
 
 		// do the rest 
-		while( arg != NULL){
-			args[n] = strdup(arg);
-			n++;
-			args_count++;
-			arg = strtok(NULL, " ");
+		while( arg != NULL ){	
+			args[args_count] = strdup(arg);
+			arg = strtok(NULL," ");
+			args_count++;	
 		}	
 
+		args[args_count] = NULL;
+		
 		// background
-		if(strcmp(args[args_count], "&") == 0){
+		if(strcmp(args[args_count-1], "&") == 0){
 			background = 1;
 		}
 
@@ -98,42 +124,20 @@ int main(){
 		}
 		if(strcmp(args[0], "cd") == 0){
 			if(args_count > 1){
-				//chdir args[1]
+				chdir(args[1]);
 			} else {
-				//chdir home
+				chdir(getenv("HOME"));
 			}
 			continue;
-		}
-
-			
+		}	
 
 		//fork and exec 
-		
-		pid_t pid;
-		pid = fork();
-		
-		if(pid<0){
-			perror("fork problem");
-			exit(EXIT_FAILURE);
+		if(args_count>0){
+			execute(args);
 		}
-
-		if(pid){
-			//parent
-			
-		} else {
-			//child
-			if (execvp(line[0], line) == -1){
-				perror("problem with exec.");
-				exit(EXIT_FAILURE);
-			}
-		}
-
-
-		
-		//restore fd table
 
 		//free mem
-		for(int i = 0; i < ARGS_COUNT; i++){
+		for(int i = 0; i < ARGS_LEN; i++){
 			free(args[i]);
 		}
 		free(arg);
