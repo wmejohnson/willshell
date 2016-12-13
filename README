@@ -4,8 +4,13 @@ Things I know don't work:
 
 1. SIGINT / killing child processes isn't working 
 2. not reaping children
-3. piping not implemented
-4. freeing mem, but valgrand says i'm still leaking :(
+3. piping implemented, but output isn't getting writting to stdout and can't figure out why 
+4. freeing mem, but valgrInd says i'm still leaking and can't find where:(
+
+Sources I consulted:
+http://tldp.org/LDP/lpg/node11.html
+http://www.csl.mtu.edu/cs4411.ck/www/NOTES/signal/kill.html
+http://www.csl.mtu.edu/cs4411.ck/www/NOTES/process/fork/exec.html
 
 I affirm I have adhered to the honor code on this assignment
 Will Johnson

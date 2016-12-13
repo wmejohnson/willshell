@@ -46,10 +46,10 @@ void execute(char ** args, int background){
 	int stdout_cpy = dup(STDOUT_FILENO);
 	int newout = -1;
 	int newin = -1;
+	int p = 0;
+	char ** rest;
 	int fd[2];
-	int pipe = 0;
-	char * rest;
-
+	
 	//go through and do rediretions
 	int i = 0;
 	while(args[i]!=NULL){
@@ -92,18 +92,21 @@ void execute(char ** args, int background){
 				exit(EXIT_FAILURE);
 			}
 
-			pipe = 1;
+			p = 1;
 			args[i] = NULL;
-			rest = args[i+1];
+			rest = &args[i+1];
 		}
 		i++;
 	}
 
+	
 	pid_t wpid;
 	int pid2 = -1;
-	if(pipe){
+	if(p){
+		//fork twice and pipe
 		pid = fork();
 		if(pid!=0){
+			// so that i don't crash clyde
 			pid2 = fork(); 
 		}
 	} else {
@@ -116,33 +119,39 @@ void execute(char ** args, int background){
 	}
 
 	if(pid==0){
-		//child
-		if(pipe){
-			dup2(fd[0], STDIN_FILENO);
-			close(STDOUT_FILENO);
+		//child - left side of pipe
+
+		if(p){
+			dup2(fd[1], STDOUT_FILENO);
+			close(STDIN_FILENO);
 		}
 		
 		if (execvp(args[0], args) < 0) {
-			perror("problem with exec.");
+			perror("child 1 problem with exec.");
 			exit(EXIT_FAILURE);
 		}
+		exit(EXIT_SUCCESS);
 	} else if (pid2==0){
-		//child 2
-		if(pipe){
-			dup2(fd[0], STDOUT_FILENO);
-			close(STDIN_FILENO);
+		//child 2 - right side of pipe
+
+		if(p){
+			dup2(fd[0], STDIN_FILENO);
+			close(STDOUT_FILENO);
+
+			//test by reopening stdout ?? doesn't work ??
+			dup2(stdout_cpy, STDOUT_FILENO);
 		}
 
-		if (execvp(rest, &rest) < 0) {
-			perror("problem with exec.");
+		if (execvp(rest[0], rest) < 0) {
+			perror("child 2 problem with exec.");
 			exit(EXIT_FAILURE);
-		}
-
+		}	
+		exit(EXIT_SUCCESS);
 	} else {
 		//parent
 
 		if(background){
-			printf("%d\n", pid);
+			printf("Started : %d\n", pid);
 			waitpid(-1, &status, WNOHANG);
 		} else {
 			wpid = wait(&status);
