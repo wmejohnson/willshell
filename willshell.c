@@ -41,7 +41,6 @@ void sig_handler(int sig){
 
 void execute(char ** args, int background){
 
-	int status;
 	int stdin_cpy = dup(STDIN_FILENO);
 	int stdout_cpy = dup(STDOUT_FILENO);
 	int newout = -1;
@@ -121,40 +120,61 @@ void execute(char ** args, int background){
 	if(pid==0){
 		//child - left side of pipe
 
+		//if pipe
 		if(p){
-			dup2(fd[1], STDOUT_FILENO);
-			close(STDIN_FILENO);
+			int ret = dup2(fd[1], STDOUT_FILENO);
+			if(ret < 0){
+				perror("error with dup2");
+				exit(EXIT_FAILURE);
+			}
+			close(fd[0]);
+			close(fd[1]);
 		}
 		
 		if (execvp(args[0], args) < 0) {
 			perror("child 1 problem with exec.");
 			exit(EXIT_FAILURE);
 		}
+
 		exit(EXIT_SUCCESS);
 	} else if (pid2==0){
 		//child 2 - right side of pipe
 
 		if(p){
-			dup2(fd[0], STDIN_FILENO);
-			close(STDOUT_FILENO);
-
+			int ret = dup2(fd[0], STDIN_FILENO);
+			if(ret < 0){
+				perror("error with dup2");
+				exit(EXIT_FAILURE);
+			}
+			close(fd[0]);
+			close(fd[1]);
+	
 			//test by reopening stdout ?? doesn't work ??
-			dup2(stdout_cpy, STDOUT_FILENO);
 		}
 
 		if (execvp(rest[0], rest) < 0) {
 			perror("child 2 problem with exec.");
 			exit(EXIT_FAILURE);
 		}	
+
+
 		exit(EXIT_SUCCESS);
 	} else {
-		//parent
+		//parent	
+
+		close(fd[0]);
+		close(fd[1]);
+
+		int status;
 
 		if(background){
 			printf("Started : %d\n", pid);
 			waitpid(-1, &status, WNOHANG);
 		} else {
 			wpid = wait(&status);
+			if(p){
+				wpid = wait(&status);
+			}
 		}
 
 	}
